@@ -1,0 +1,150 @@
+/* Performing Data Cleaning with SQL Queries */
+/* Quering the data */
+
+SELECT *
+FROM [Nashville Housing].dbo.HousingData
+
+--Formatting Date Column to remove time
+SELECT SaleDate, CONVERT (Date, SaleDate) AS Date
+FROM [Nashville Housing].dbo.HousingData
+
+---Adding a column for showing date only
+
+ALTER TABLE [Nashville Housing].dbo.HousingData
+ADD SaleDateConverted Date;
+
+--Updating the table with new format of Date
+
+UPDATE [Nashville Housing].dbo.HousingData
+SET SaleDateConverted = CONVERT (DATE, SaleDate)
+
+--Dropping the SaleDate column with type datetime
+
+ALTER TABLE [Nashville Housing].dbo.HousingData
+DROP COLUMN SaleDate;
+
+--Populate Property Address Data which are null values
+
+SELECT *
+FROM [Nashville Housing].dbo.HousingData
+
+
+
+SELECT Table1.ParcelID, Table2.ParcelID, Table1.PropertyAddress, Table2.PropertyAddress, ISNULL(Table1.PropertyAddress, Table2.PropertyAddress)
+FROM [Nashville Housing].dbo.HousingData Table1 
+JOIN [Nashville Housing] .dbo.HousingData Table2
+ ON  Table1.ParcelID=Table2.ParcelID
+AND Table1.UniqueID <> Table2.UniqueID
+	WHERE Table1.PropertyAddress IS NULL
+
+UPDATE Table1
+SET PropertyAddress = ISNULL(Table1.PropertyAddress, Table2.PropertyAddress)
+FROM [Nashville Housing].dbo.HousingData Table1 
+JOIN [Nashville Housing] .dbo.HousingData Table2
+ ON  Table1.ParcelID=Table2.ParcelID
+AND Table1.UniqueID <> Table2.UniqueID
+	WHERE Table1.PropertyAddress IS NULL
+
+--Splitting the PropertyAdress into Address, Street
+
+SELECT *
+FROM [Nashville Housing].dbo.HousingData
+
+SELECT SUBSTRING(PropertyAddress, 1, CHARINDEX(',',PropertyAddress, 1) - 1) as Address, 
+SUBSTRING(PropertyAddress, CHARINDEX(',',PropertyAddress) + 2, LEN(PropertyAddress)) as Address2
+FROM [Nashville Housing].dbo.HousingData
+
+OR
+
+--SELECT PARSENAME(REPLACE(PropertyAddress, ',', '.'), 1)
+--FROM [Nashville Housing].dbo.HousingData
+
+ALTER TABLE [Nashville Housing].dbo.HousingData
+ADD Property_Strt_Address nvarchar (255);
+
+UPDATE [Nashville Housing].dbo.HousingData
+SET Property_Strt_Address = SUBSTRING(PropertyAddress, 1, CHARINDEX(',',PropertyAddress, 1) - 1)
+
+ALTER TABLE [Nashville Housing].dbo.HousingData
+ADD Property_City_Address nvarchar (255);
+
+
+UPDATE [Nashville Housing].dbo.HousingData
+SET Property_City_Address = SUBSTRING(PropertyAddress, CHARINDEX(',',PropertyAddress) + 2, LEN(PropertyAddress))
+
+
+SELECT *
+FROM [Nashville Housing].dbo.HousingData
+
+SELECT SUBSTRING(PropertyAddress, 1, CHARINDEX(',',PropertyAddress, 1) - 1) as Address, 
+SUBSTRING(PropertyAddress, CHARINDEX(',',PropertyAddress) + 2, LEN(PropertyAddress)) as Address2
+FROM [Nashville Housing].dbo.HousingData
+
+--Splitting OwnerAddress column into three different address
+--PARSENAME is used to split across strings when there the delimiter is a period (.)
+--Replacing the period with comma to identify the delimiter 
+
+SELECT PARSENAME(REPLACE(OwnerAddress, ',', '.'), 3), 
+	PARSENAME(REPLACE(OwnerAddress, ',', '.'), 2), 
+	PARSENAME(REPLACE(OwnerAddress, ',', '.'), 1)
+FROM [Nashville Housing].dbo.HousingData
+
+ALTER TABLE [Nashville Housing].dbo.HousingData
+ADD Owner_Street_Address nvarchar (255);
+
+UPDATE [Nashville Housing].dbo.HousingData
+SET Owner_Street_Address = PARSENAME(REPLACE(OwnerAddress, ',', '.'), 3)
+
+ALTER TABLE [Nashville Housing].dbo.HousingData
+ADD Owner_City_Address nvarchar (255);
+
+UPDATE [Nashville Housing].dbo.HousingData
+SET Owner_City_Address = PARSENAME(REPLACE(OwnerAddress, ',', '.'), 2)
+
+ALTER TABLE [Nashville Housing].dbo.HousingData
+ADD Owner_State_Address nvarchar (255);
+
+UPDATE [Nashville Housing].dbo.HousingData
+SET Owner_State_Address = PARSENAME(REPLACE(OwnerAddress, ',', '.'), 1)
+
+--Change SoldAsVacant from "Y" to "N" to "Yes" and "No"
+SELECT Distinct(SoldAsVacant), COUNT(SoldAsVacant)
+FROM [Nashville Housing].dbo.HousingData
+GROUP BY SoldAsVacant
+
+SELECT SoldAsVacant,
+ CASE WHEN SoldAsVacant = 'Y' THEN 'Yes'
+	  WHEN SoldAsVacant = 'N' THEN 'No'
+	  ELSE SoldAsVacant
+	  END
+FROM [Nashville Housing].dbo.HousingData
+
+UPDATE [Nashville Housing].dbo.HousingData
+SET SoldAsVacant = CASE WHEN SoldAsVacant = 'Y' THEN 'Yes'
+	  WHEN SoldAsVacant = 'N' THEN 'No'
+	  ELSE SoldAsVacant
+	  END
+
+--Remove duplicates using window functions
+
+--Creating CTE to filter by rownumbers where rownnum > 2
+WITH RownNumCTE AS (	
+	SELECT *, ROW_NUMBER () OVER (
+			PARTITION BY 
+				ParcelID, LandUse, PropertyAddress, SalePrice, LegalReference, OwnerAddress, SaleDateConverted, LandValue, Property_Address
+				ORDER BY UniqueID
+				) rownum
+FROM [Nashville Housing].dbo.HousingData
+)
+DELETE
+FROM RownNumCTE
+WHERE rownum >1;
+
+
+--Deleting Unused columns
+
+SELECT *
+FROM [Nashville Housing].dbo.HousingData
+
+--ALTER TABLE [Nashville Housing].dbo.HousingData
+--DROP COLUMN Address, Street_Address, Property_Address, Property_Street_Address, PropertyAddress, OwnerAdress, TaxDistrict
